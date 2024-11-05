@@ -1,0 +1,7 @@
+GET /api_root/Post/ HTTP/1.1
+Authorization: Token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTcyODgxMDQwOSwiaWF0IjoxNzI4NzI0MDA5LCJqdGkiOiJhZjI4ZWJhMjA3M2U0ZTE5OTUzZmE3ZGZhY2I3NWNhOSIsInVzZXJfaWQiOjF9.N5G51AxWUMn4jqdmysGQKHPc0wU8Q5iLHBtjwoAZa4Y
+User-Agent: Dalvik/2.1.0 (Linux; U; Darwin Darwin Kernel Version 22.3.0: Mon Jan 30 20:39:35 PST 2023; root:xnu-8792.81.3~2/RELEASE_ARM64_T8103; 64bit Build/TPB4.220624.004)
+Host: 10.0.2.2:8000
+Connection: Keep-Alive
+Accept-Encoding: gzip
+
