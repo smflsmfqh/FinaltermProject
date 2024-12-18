@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion-Based Song Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: skyblue;
+            margin-bottom: 20px;
+        }
+        .admin-icon {
+            position: absolute;
+            top: 10px;
+            right: 30px;
+            font-size: 24px;
+            color: #007bff;
+            text-decoration: none;
+            
+        }
+        .post {
+            border-bottom: 1px solid #ddd;
+            padding: 15px 0;
+            background-color: #fff;  
+        }
+        .post:last-child {
+            border-bottom: none;
+        }
+        .post-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .post-date {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        .post-image {
+            margin-top: 10px;
+            max-width: 100%;
+            border-radius: 5px;
+        }
+
+        .comment-section {
+            margin-top: 30px;
+            max-width: 100%; 
+            padding: 10px;
+            background-color: white;
+        }
+        .comment {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f6feff;
+            border-radius: 5px;
+            justify-content: space-between;  
+        }
+        .comment-author {
+            font-weight: bold;
+        }
+        .comment-text {
+            margin-top: 5px;
+        }
+        
+        .comment-form textarea {
+            width: 96.5%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #e7fbfe;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            Emotion-Based Songs Recommendations
+            <a href="{% url 'admin:blog_post_change' object_id=1 %}" class="admin-icon">
+                <i class="fas fa-cogs"></i> <!-- 아이콘 추가 -->
+            </a>
+        </div>
+        <!-- 감정 인식 시작 버튼 추가 -->
+        <button id="startEmotionRecognitionBtn" onclick="startEmotionRecognition()" style="background-color: skyblue; padding: 10px; font-weight: bold;">감정 인식 시작</button>
+
+        {% for post in posts %}
+        <div class="post">
+            <div class="post-title">{{ post.title }}</div>
+            <div class="post-date">{{ post.created_date|date:"Y년 m월 d일 H:i" }}</div>
+            <p>{{ post.text }}</p>
+            {% if post.image %}
+                <img src="{{ post.image.url }}" alt="{{ post.title }}" class="post-image">
+            {% endif %}
+            
+             <!-- 추천 노래 출력 -->
+             {% if post.song_urls %}
+             <div class="song-recommendations">
+                 <h3>추천된 노래:</h3>
+                 <ul>
+                     {% for song in post.song_urls.splitlines %}
+                         <li><a href="{{ song }}" class="song-url" target="_blank">{{ song }}</a></li>
+                     {% endfor %}
+                 </ul>
+             </div>
+             {% endif %}
+
+             <!-- 댓글 출력 -->
+             <div id="comment-section" class="comment-section">
+                <h3>댓글</h3>
+                {% for comment in post.comments.all %}
+                    <div class="comment">
+                        <div class="comment-author">{{ comment.author.username }}</div>
+                        <p class="comment-text">{{ comment.text }}</p>
+                    </div>  
+                {% endfor %}
+                <!-- 댓글 작성 폼 -->
+                <form method="POST" action="{% url 'comment_list' post.id %}" class="comment-form">
+                    {% csrf_token %}
+                    <textarea name="text" placeholder="댓글을 작성하세요"></textarea>
+                    <button type="submit">댓글 작성</button>
+                </form>
+            </div>
+       </div>
+       {% endfor %}
+    </div>
+    <script>
+        function startEmotionRecognition() {
+            console.log("버튼이 클릭되었습니다!"); // 클릭 확인용 로그
+            // 버튼 클릭 시 AJAX 요청을 대신하여 curl 요청을 보내는 서버로 이동하는 방식
+            fetch('/start-emotion-recognition/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})  // 추가 데이터를 보낼 수 있음
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('감정 인식이 성공적으로 시작되었습니다!');
+                } else {
+                    alert('오류 발생: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('오류가 발생했습니다.');
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('.comment-form');
+            form.addEventListener('submit', function(event) {
+                event.preventDefault(); // 폼 제출을 막음
+
+                const text = document.querySelector('textarea[name="text"]').value;
+                const postId = '{{ post.id }}';  // 이 값을 템플릿에서 전달
+
+                console.log('Submitting comment:', text);  // 디버깅: 제출된 댓글 내용 확인
+                if (!text) {
+                    alert("댓글 내용이 비어있습니다.");
+                    return;
+                }
+
+                fetch(`/post/${postId}/comments/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        post: postId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('댓글 작성에 실패했습니다: ' + data.error);
+                    } else {
+                        alert('댓글이 작성되었습니다!');
+
+                        // 작성된 댓글을 화면에 추가
+                        const commentList = document.getElementById('comment-section');
+                        if (!commentList) {
+                            console.error('comment-section을 찾을 수 없습니다.');
+                            return;
+                        }
+                        const newComment = document.createElement('div');
+                        newComment.classList.add('comment');
+
+                        const commentAuthor = document.createElement('div');
+                        commentAuthor.classList.add('comment-author');
+                        commentAuthor.textContent = data.author;  // 응답에서 author를 받아와서 표시
+
+                        const commentText = document.createElement('p');
+                        commentText.classList.add('comment-text');
+                        commentText.textContent = data.text;  // 응답에서 댓글 내용을 받아와서 표시
+
+        
+                        newComment.appendChild(commentAuthor);
+                        newComment.appendChild(commentText);
+                        
+
+                        // 댓글을 폼 바로 아래에 추가 (form 다음)
+                        const form = document.querySelector('.comment-form');
+                        commentList.insertBefore(newComment, form);  // insertBefore로 form 바로 위에 추가
+
+                        // 댓글 작성 후 textarea 비우기
+                        document.querySelector('textarea[name="text"]').value = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('오류가 발생했습니다.');
+                 });
+            });
+
+        
+         
+
+    });
+        
+    </script>
+</body>
+</html>

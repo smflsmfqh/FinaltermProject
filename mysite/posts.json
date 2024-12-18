@@ -1,0 +1,1 @@
+[{"model": "blog.post", "pk": 1, "fields": {"author": 1, "title": "과제1", "text": "과제1", "created_date": "2024-10-08T04:56:09Z", "published_date": null, "image": "blog_image/2024/10/08/hw.png"}}]

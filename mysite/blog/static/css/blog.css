@@ -1,0 +1,4 @@
+.blog-image-list {
+    object-fit: cover; /* 이미지 비율을 유지하면서 지정된 크기에 맞게 잘라냄 */
+
+}
