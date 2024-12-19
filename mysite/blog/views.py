@@ -19,7 +19,7 @@ import subprocess
 import base64
 
 
-sys.path.append('/Users/ihaneul/projects/yolov5')
+sys.path.append('/home/haneullee/ForPythonanywhere/yolov5')
 
 from changedetection import detect_person_from_webcam
 
@@ -27,30 +27,58 @@ from changedetection import detect_person_from_webcam
 def startEmotionRecognition(request):
     if request.method == 'POST':
         try:
+            image = request.FILES.get('image')  # 이미지 파일이 요청에 포함되었는지 확인
+
+            if image:
+                # 이미지 업로드 처리
+                fs = FileSystemStorage()
+                saved_file_path = fs.save(image.name, image)  # 서버에 이미지 저장
+                full_file_path = fs.path(saved_file_path)  # 저장된 이미지의 전체 경로
+
+                # 이미지가 있을 경우: 이미지를 포함하여 감정 분석을 시작하는 요청
+                url = 'http://127.0.0.1:8000/detect_emotion_and_recommend/'
+                files = {'image': open(full_file_path, 'rb')}  # 이미지를 함께 보냄
+                response = requests.post(url, files=files)
+
+                files['image'].close()
+
+                if response.status_code == 200:
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Emotion recognition started successfully with image!',
+                        'response': response.json()  # 응답 내용
+                    }, status=200)
+                else:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'Error occurred: {response.text}'  # 요청 오류 메시지
+                    }, status=400)
+
             # curl 명령어를 실행하는 부분
-            curl_command = [
-                'curl', '-X', 'POST', 'http://127.0.0.1:8000/detect_emotion_and_recommend/',  # 요청을 보낼 URL
-                '-H', 'Content-Type: application/json',  # 요청 헤더
-                '-d', '{}'  # 요청 데이터
-            ]
-            
-            # curl 명령어 실행
-            result = subprocess.run(curl_command, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                # 성공적인 실행
-                return JsonResponse({
-                    'status': 'success',
-                    'message': 'Emotion recognition started successfully!',
-                    'response': result.stdout  # curl의 응답 내용
-                   
-                }, status=200)
             else:
-                # 오류 발생 시
-                return JsonResponse({
-                    'status': 'error',
-                    'message': f'Error occurred: {result.stderr}'  # curl 에러 출력
-                }, status=400)
+                curl_command = [
+                    'curl', '-X', 'POST', 'http://127.0.0.1:8000/detect_emotion_and_recommend/',  # 요청을 보낼 URL
+                    '-H', 'Content-Type: application/json',  # 요청 헤더
+                    '-d', '{}'  # 요청 데이터
+                ]
+
+                # curl 명령어 실행
+                result = subprocess.run(curl_command, capture_output=True, text=True)
+
+                if result.returncode == 0:
+                    # 성공적인 실행
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Emotion recognition started successfully!',
+                        'response': result.stdout  # curl의 응답 내용
+
+                    }, status=200)
+                else:
+                    # 오류 발생 시
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'Error occurred: {result.stderr}'  # curl 에러 출력
+                    }, status=400)
 
         except Exception as e:
             return JsonResponse({
@@ -61,7 +89,7 @@ def startEmotionRecognition(request):
 def post_list(request):
     posts = Post.objects.all()
     for post in posts:
-        print(post.id)  
+        print(post.id)
     return render(request, 'blog/post_list.html', {'posts': posts})
 
 class PostView(APIView):
@@ -79,7 +107,7 @@ class PostView(APIView):
         created_date = request.data.get('created_date')
         published_date = request.data.get('published_date')
         song_urls = request.data.get('song_urls')  # 추가된 부분
-        #image = request.FILES.get('image')  
+        #image = request.FILES.get('image')
 
         post = Post(
             author=author,
@@ -100,11 +128,11 @@ class PostView(APIView):
                 Image.objects.create(post=post, image=image)  # 각 이미지를 새로운 Image 모델로 저장
 
         return Response({"message": "Post created successfully"}, status=status.HTTP_201_CREATED)
-    
+
 class BlogImages(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-        
+
 # 추가된 뷰
 def post_detail(request, pk):
     post = get_object_or_404(Post, pk=pk)
@@ -155,29 +183,51 @@ def upload_image(request):
     else:
         return JsonResponse({'success': False, 'error': 'No image provided'}, status=400)
 
+def analyze_emotion_from_image(image):
+    """이미지를 사용하여 감정을 분석하는 함수"""
+    # 이미지를 OpenCV 형식으로 변환
+    img_array = np.frombuffer(image.read(), np.uint8)
+    frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-@api_view(['POST'])    
+    # 감정 분석을 위해 detect_person_from_webcam 호출
+    return detect_person_from_webcam(frame=frame)  # 이미지 프레임 전달
+
+
+@api_view(['POST'])
 def detect_emotion_and_recommend(request):
     """
     사용자가 감정을 인식하고 노래를 추천하는 API 엔드포인트
     """
     try:
-        # 감정 인식 및 노래 추천
-        detect_person_from_webcam(request)  # 이 함수는 실시간으로 웹캠을 처리하므로, 여기서 HTTP 요청으로 대체된 실행이 일어남
+        if 'image' in request.FILES:
+            # 이미지 파일이 포함된 경우
+            image_file = request.FILES['image']
+            emotion_result = analyze_emotion_from_image(image_file)
 
-        # 응답 반환 (성공적인 처리가 완료되었음을 알림)
-        return JsonResponse({
-            'status': 'success',
-            'message': 'Emotion detected and song recommendations sent successfully.'
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Emotion detected successfully from uploaded image.',
+                'data': emotion_result  # 감정 분석 결과 반환
+            }, status=200)
+        else:
+
+            # 감정 인식 및 노래 추천
+            emotion_results = detect_person_from_webcam(request)  # 이 함수는 실시간으로 웹캠을 처리하므로, 여기서 HTTP 요청으로 대체된 실행이 일어남
+
+            # 응답 반환 (성공적인 처리가 완료되었음을 알림)
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Emotion detected and song recommendations sent successfully.',
+                'data': emotion_result
         }, status=200)
-    
+
     except Exception as e:
         return JsonResponse({
             'status': 'error',
             'message': str(e)
         }, status=400)
 
-    
+
 @api_view(['GET', 'POST'])
 def comment_list(request, post_id):
     post = Post.objects.get(id=post_id)
@@ -197,10 +247,10 @@ def comment_list(request, post_id):
         data = {
             'text': text,
             'post': post.id,
-            'author': request.user.id if request.user.is_authenticated else None 
+            'author': request.user.id if request.user.is_authenticated else None
         }
 
-        
+
         serializer = CommentSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save()  # 로그인한 사용자가 author로 저장

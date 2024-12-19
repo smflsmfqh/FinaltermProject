@@ -34,12 +34,12 @@
             font-size: 24px;
             color: #007bff;
             text-decoration: none;
-            
+
         }
         .post {
             border-bottom: 1px solid #ddd;
             padding: 15px 0;
-            background-color: #fff;  
+            background-color: #fff;
         }
         .post:last-child {
             border-bottom: none;
@@ -62,7 +62,7 @@
 
         .comment-section {
             margin-top: 30px;
-            max-width: 100%; 
+            max-width: 100%;
             padding: 10px;
             background-color: white;
         }
@@ -71,7 +71,7 @@
             padding: 10px;
             background-color: #f6feff;
             border-radius: 5px;
-            justify-content: space-between;  
+            justify-content: space-between;
         }
         .comment-author {
             font-weight: bold;
@@ -79,7 +79,7 @@
         .comment-text {
             margin-top: 5px;
         }
-        
+
         .comment-form textarea {
             width: 96.5%;
             padding: 10px;
@@ -87,6 +87,25 @@
             border-radius: 5px;
             border: 1px solid #e7fbfe;
             resize: vertical;
+        }
+         /* 모달 스타일 */
+        #optionModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        #optionModal div {
+            margin: 15% auto;
+            background: white;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -99,7 +118,22 @@
             </a>
         </div>
         <!-- 감정 인식 시작 버튼 추가 -->
-        <button id="startEmotionRecognitionBtn" onclick="startEmotionRecognition()" style="background-color: skyblue; padding: 10px; font-weight: bold;">감정 인식 시작</button>
+        <button id="startEmotionRecognitionBtn" onclick="openModal()" style="background-color: skyblue; padding: 10px; font-weight: bold;">감정 인식 시작</button>
+        <!-- 감정 인식 방법 선택 모달 -->
+        <div id="optionModal">
+            <div>
+                <h3>감정 인식 방법 선택</h3>
+                <button onclick="openImageUpload()">이미지 업로드</button>
+                <button onclick="startWebcamRecognition()">카메라 촬영</button>
+                <button onclick="closeModal()">닫기</button>
+            </div>
+        </div>
+        <!-- 이미지 업로드 폼 -->
+        <form id="imageUploadForm" style="display:none;" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="file" id="imageInput" name="image" accept="image/*">
+            <button type="button" onclick="uploadImage()">이미지 분석 시작</button>
+        </form>
 
         {% for post in posts %}
         <div class="post">
@@ -109,7 +143,7 @@
             {% if post.image %}
                 <img src="{{ post.image.url }}" alt="{{ post.title }}" class="post-image">
             {% endif %}
-            
+
              <!-- 추천 노래 출력 -->
              {% if post.song_urls %}
              <div class="song-recommendations">
@@ -129,7 +163,7 @@
                     <div class="comment">
                         <div class="comment-author">{{ comment.author.username }}</div>
                         <p class="comment-text">{{ comment.text }}</p>
-                    </div>  
+                    </div>
                 {% endfor %}
                 <!-- 댓글 작성 폼 -->
                 <form method="POST" action="{% url 'comment_list' post.id %}" class="comment-form">
@@ -142,7 +176,56 @@
        {% endfor %}
     </div>
     <script>
+        // 모달 열기
+        function openModal() {
+            document.getElementById("optionModal").style.display = "block";
+        }
+
+        // 모달 닫기
+        function closeModal() {
+            document.getElementById("optionModal").style.display = "none";
+        }
+
+        // 이미지 업로드 폼 열기
+        function openImageUpload() {
+            closeModal();
+            document.getElementById("imageUploadForm").style.display = "block";
+        }
+
+        // 이미지 업로드 처리
+        function uploadImage() {
+            const imageInput = document.getElementById("imageInput").files[0];
+            if (!imageInput) {
+                alert("이미지를 선택해주세요.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("image", imageInput);
+
+            fetch('/start-emotion-recognition/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert("이미지 감정 인식이 완료되었습니다!");
+                } else {
+                    alert("오류 발생: " + data.message);
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("오류가 발생했습니다.");
+            });
+        }
+
         function startEmotionRecognition() {
+            closeModal();
             console.log("버튼이 클릭되었습니다!"); // 클릭 확인용 로그
             // 버튼 클릭 시 AJAX 요청을 대신하여 curl 요청을 보내는 서버로 이동하는 방식
             fetch('/start-emotion-recognition/', {
@@ -213,10 +296,10 @@
                         commentText.classList.add('comment-text');
                         commentText.textContent = data.text;  // 응답에서 댓글 내용을 받아와서 표시
 
-        
+
                         newComment.appendChild(commentAuthor);
                         newComment.appendChild(commentText);
-                        
+
 
                         // 댓글을 폼 바로 아래에 추가 (form 다음)
                         const form = document.querySelector('.comment-form');
@@ -232,11 +315,11 @@
                  });
             });
 
-        
-         
+
+
 
     });
-        
+
     </script>
 </body>
 </html>

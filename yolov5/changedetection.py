@@ -76,26 +76,26 @@ def youtube_search(query):
                 maxResults=1  # 최대 1개의 결과를 반환
             )
             response = request.execute()
-            
+
             videos = []
             for item in response['items']:
                 video_title = item['snippet']['title']
                 video_url = f"https://www.youtube.com/watch?v={item['id']['videoId']}"
                 videos.append({'title': video_title, 'url': video_url})
-            
+
             return videos
-        
+
         except HttpError as err:
             print(f"Attempt {attempt + 1} failed: {err}")
             if attempt < retries - 1:
                 time.sleep(2 ** attempt)  # 지수 백오프 (2, 4, 8 초 대기)
             else:
                 return []
-        
+
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             return []
-    
+
 
 # Change Detection 클래스
 class ChangeDetection:
@@ -110,7 +110,7 @@ class ChangeDetection:
     def __init__(self, names):
         # 이전 결과를 저장하는 리스트 초기화
         self.result_prev = [0 for _ in range(len(names))]
-        
+
         # 토큰을 요청하여 저장
         res = requests.post(
             f"{self.HOST}/api/token/",
@@ -143,7 +143,7 @@ class ChangeDetection:
         # 노래 추천 URL을 텍스트에 포함
         if song_urls:
             self.song_urls = song_urls
-        
+
         if change_flag == 1:
             self.send(save_dir, image)
 
@@ -192,81 +192,143 @@ class ChangeDetection:
         file['image'].close()
 
 # YOLOv5 모델 로드
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # yolov5s 모델 사용 (경량 모델)
+model = None
+
+def load_model():
+    global model
+    if model is None:
+        # 모델 로딩
+        model = torch.hub.load('/home/haneullee/ForPythonanywhere/yolov5', 'yolov5s', source='local')
+        print("Model loaded!")
+    return model
 
 def detect_person_from_webcam(request=None):
 
     if request is None: # http 요청 없을 시 그냥 종료
-        return 
-    
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        return JsonResponse({'status': 'error', 'message': 'Failed to open webcam'}, status=400)
-    previous_emotion = None
-    current_emotion = None
+        return JsonResponse({'status': 'error', 'message': '요청이 없습니다'}, status=400)
 
-    timeout = 10
-    start_time = time.time()
+    if 'image' in request.FILES:
+        image = request.FILES['image']  # 이미지 파일을 가져옴
+        img_array = np.frombuffer(image.read(), np.uint8)  # 바이트로 읽어서 이미지로 변환
+        frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)  # OpenCV 이미지로 디코딩
 
-    # 객체 및 감정 변화 감지
-    change_detector = ChangeDetection(["person"])  # 예시로 "person" 클래스만 사용
+        # YOLO 모델을 사용하여 객체 탐지
+        model = load_model()  # 요청이 있을 때만 모델 로드
+        results = model(frame)  # 이미지에서 객체 탐지
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Failed to read frame from webcam.")
-            break
-
-        # YOLOv5로 객체 탐지
-        results = model(frame)
-
+        # 객체 및 감정 분석
         xywh = results.xywh[0].cpu().numpy()
         df = pd.DataFrame(xywh, columns=['x', 'y', 'w', 'h', 'confidence', 'class'])
-        # 결과에서 'person' 클래스만 필터링
         persons = df[df['class'] == 0]
 
-        # 사람 객체가 발견되면 감정 분석 수행
+        previous_emotion = None
+        current_emotion = None
+
         for index, row in persons.iterrows():
             x1, y1, x2, y2 = int(row['x'] - row['w'] / 2), int(row['y'] - row['h'] / 2), \
                               int(row['x'] + row['w'] / 2), int(row['y'] + row['h'] / 2)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # 사람을 초록색 박스로 표시
             cv2.putText(frame, f'Person {index+1}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-            # 감정 분석 실행
             face_image = frame[y1:y2, x1:x2]
             current_emotion = analyze_emotion_from_webcam(face_image)
 
-            if previous_emotion is None:  # 첫 번째 감정 인식 시
+            # 감정 변화 감지
+            if previous_emotion is None:
                 print("First emotion detected!")
                 songs = youtube_search(f"{current_emotion} music")
                 change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
                 print("Recommended songs for the first emotion:")
                 for song in songs:
                     print(f"Title: {song['title']}, URL: {song['url']}")
-            elif previous_emotion != current_emotion:  # 감정이 변화하면
+            elif previous_emotion != current_emotion:
                 print("Emotion has changed!")
                 songs = youtube_search(f"{current_emotion} music")
-                change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)  # 감정 변화 시 이미지 업로드
+                change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
                 print(f"Recommended songs for {current_emotion}:")
                 for song in songs:
                     print(f"Title: {song['title']}, URL: {song['url']}")
 
             previous_emotion = current_emotion
-   
+
+        # 이미지를 클라이언트에게 반환
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        return JsonResponse({'status': 'success', 'message': 'Image processed successfully', 'image': base64.b64encode(img_encoded).decode('utf-8')})
 
 
-        if time.time() - start_time > timeout:
-            print("Webcam timed out. Exiting.")
-            break
+
+    else:
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            return JsonResponse({'status': 'error', 'message': 'Failed to open webcam'}, status=400)
+
+        model = load_model()
+        previous_emotion = None
+        current_emotion = None
+
+        timeout = 10
+        start_time = time.time()
+
+        # 객체 및 감정 변화 감지
+        change_detector = ChangeDetection(["person"])  # 예시로 "person" 클래스만 사용
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to read frame from webcam.")
+                break
+
+
+            results = model(frame)
+
+            xywh = results.xywh[0].cpu().numpy()
+            df = pd.DataFrame(xywh, columns=['x', 'y', 'w', 'h', 'confidence', 'class'])
+            # 결과에서 'person' 클래스만 필터링
+            persons = df[df['class'] == 0]
+
+            # 사람 객체가 발견되면 감정 분석 수행
+            for index, row in persons.iterrows():
+                x1, y1, x2, y2 = int(row['x'] - row['w'] / 2), int(row['y'] - row['h'] / 2), \
+                                    int(row['x'] + row['w'] / 2), int(row['y'] + row['h'] / 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # 사람을 초록색 박스로 표시
+                cv2.putText(frame, f'Person {index+1}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+                # 감정 분석 실행
+                face_image = frame[y1:y2, x1:x2]
+                current_emotion = analyze_emotion_from_webcam(face_image)
+
+                if previous_emotion is None:  # 첫 번째 감정 인식 시
+                    print("First emotion detected!")
+                    songs = youtube_search(f"{current_emotion} music")
+                    change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
+                    print("Recommended songs for the first emotion:")
+                    for song in songs:
+                        print(f"Title: {song['title']}, URL: {song['url']}")
+                elif previous_emotion != current_emotion:  # 감정이 변화하면
+                    print("Emotion has changed!")
+                    songs = youtube_search(f"{current_emotion} music")
+                    change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)  # 감정 변화 시 이미지 업로드
+                    print(f"Recommended songs for {current_emotion}:")
+                    for song in songs:
+                        print(f"Title: {song['title']}, URL: {song['url']}")
+
+                previous_emotion = current_emotion
+
+
+
+            if time.time() - start_time > timeout:
+                print("Webcam timed out. Exiting.")
+                break
 
         #cv2.imshow('Webcam - Press q to quit', frame)
 
         #if cv2.waitKey(1) & 0xFF == ord('q'):
         #    break
-        
-        
-    cap.release()
-    cv2.destroyAllWindows()
+
+
+        cap.release()
+        cv2.destroyAllWindows()
+        return JsonResponse({'status': 'success', 'message': 'Webcam processed successfully'})
 
 # 실시간 감정 분석 및 사람 객체 탐지 실행
 #detect_person_from_webcam()
