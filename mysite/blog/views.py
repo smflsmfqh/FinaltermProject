@@ -17,9 +17,10 @@ import time
 import cv2
 import subprocess
 import base64
+import numpy as np
 
 
-sys.path.append('/home/haneullee/ForPythonanywhere/yolov5')
+sys.path.append('/Users/ihaneul/projects/ForPythonanywhere/yolov5')
 
 from changedetection import detect_person_from_webcam
 
@@ -28,30 +29,41 @@ def startEmotionRecognition(request):
     if request.method == 'POST':
         try:
             image = request.FILES.get('image')  # 이미지 파일이 요청에 포함되었는지 확인
-
+            print(f"Received image: {image.name}") 
+    
             if image:
                 # 이미지 업로드 처리
                 fs = FileSystemStorage()
                 saved_file_path = fs.save(image.name, image)  # 서버에 이미지 저장
                 full_file_path = fs.path(saved_file_path)  # 저장된 이미지의 전체 경로
+                print(f"Image saved at: {full_file_path}") 
 
-                # 이미지가 있을 경우: 이미지를 포함하여 감정 분석을 시작하는 요청
-                url = 'http://127.0.0.1:8000/detect_emotion_and_recommend/'
-                files = {'image': open(full_file_path, 'rb')}  # 이미지를 함께 보냄
-                response = requests.post(url, files=files)
+                # 저장된 파일을 다시 읽어서 OpenCV로 디코딩
+                with open(full_file_path, 'rb') as img_file:
+                    img_data = img_file.read()
+                    img_array = np.frombuffer(img_data, np.uint8)
+                    frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-                files['image'].close()
+                print(f"Image received and converted to frame. Size: {frame.shape}")
+
+                # 디버깅: frame이 None인지 확인
+                if frame is None:
+                    print("Error: Image frame is None.")
+                    return JsonResponse({'status': 'error', 'message': 'Failed to decode image.'}, status=400)
+
+                # detect_person_from_webcam에 프레임 전달
+                response = detect_person_from_webcam(frame=frame)  
 
                 if response.status_code == 200:
                     return JsonResponse({
                         'status': 'success',
                         'message': 'Emotion recognition started successfully with image!',
-                        'response': response.json()  # 응답 내용
+                        'response': response.content.decode('utf-8')  # 응답 내용
                     }, status=200)
                 else:
                     return JsonResponse({
                         'status': 'error',
-                        'message': f'Error occurred: {response.text}'  # 요청 오류 메시지
+                        'message': f'Error occurred: {response.text.decode("utf-8")}'  # 요청 오류 메시지
                     }, status=400)
 
             # curl 명령어를 실행하는 부분
@@ -212,7 +224,7 @@ def detect_emotion_and_recommend(request):
         else:
 
             # 감정 인식 및 노래 추천
-            emotion_results = detect_person_from_webcam(request)  # 이 함수는 실시간으로 웹캠을 처리하므로, 여기서 HTTP 요청으로 대체된 실행이 일어남
+            emotion_result = detect_person_from_webcam(request)  # 이 함수는 실시간으로 웹캠을 처리하므로, 여기서 HTTP 요청으로 대체된 실행이 일어남
 
             # 응답 반환 (성공적인 처리가 완료되었음을 알림)
             return JsonResponse({

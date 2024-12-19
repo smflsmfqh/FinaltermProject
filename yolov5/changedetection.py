@@ -198,63 +198,80 @@ def load_model():
     global model
     if model is None:
         # 모델 로딩
-        model = torch.hub.load('/home/haneullee/ForPythonanywhere/yolov5', 'yolov5s', source='local')
+        model = torch.hub.load('/Users/ihaneul/projects/ForPythonanywhere/yolov5', 'yolov5s', source='local')
         print("Model loaded!")
     return model
 
-def detect_person_from_webcam(request=None):
+def detect_person_from_webcam(request=None, frame=None):
 
-    if request is None: # http 요청 없을 시 그냥 종료
+    if request is None and frame is None: # http 요청 없을 시 그냥 종료
         return JsonResponse({'status': 'error', 'message': '요청이 없습니다'}, status=400)
 
-    if 'image' in request.FILES:
-        image = request.FILES['image']  # 이미지 파일을 가져옴
-        img_array = np.frombuffer(image.read(), np.uint8)  # 바이트로 읽어서 이미지로 변환
-        frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)  # OpenCV 이미지로 디코딩
+    if frame is not None:
+        print("Frame received for analysis.") 
+        try:
+            model = load_model()  # 요청이 있을 때만 모델 로드
+            print("Model loaded successfully.")
 
-        # YOLO 모델을 사용하여 객체 탐지
-        model = load_model()  # 요청이 있을 때만 모델 로드
-        results = model(frame)  # 이미지에서 객체 탐지
+            results = model(frame)  # 이미지에서 객체 탐지
+            print("Object detection completed.")
 
-        # 객체 및 감정 분석
-        xywh = results.xywh[0].cpu().numpy()
-        df = pd.DataFrame(xywh, columns=['x', 'y', 'w', 'h', 'confidence', 'class'])
-        persons = df[df['class'] == 0]
+            change_detector = ChangeDetection(["person"])
 
-        previous_emotion = None
-        current_emotion = None
+            # 객체 및 감정 분석
+            xywh = results.xywh[0].cpu().numpy()
+            df = pd.DataFrame(xywh, columns=['x', 'y', 'w', 'h', 'confidence', 'class'])
+            persons = df[df['class'] == 0]
 
-        for index, row in persons.iterrows():
-            x1, y1, x2, y2 = int(row['x'] - row['w'] / 2), int(row['y'] - row['h'] / 2), \
+            previous_emotion = None
+            current_emotion = None
+
+            
+
+            for index, row in persons.iterrows():
+                x1, y1, x2, y2 = int(row['x'] - row['w'] / 2), int(row['y'] - row['h'] / 2), \
                               int(row['x'] + row['w'] / 2), int(row['y'] + row['h'] / 2)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # 사람을 초록색 박스로 표시
-            cv2.putText(frame, f'Person {index+1}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # 사람을 초록색 박스로 표시
+                cv2.putText(frame, f'Person {index+1}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-            face_image = frame[y1:y2, x1:x2]
-            current_emotion = analyze_emotion_from_webcam(face_image)
+                face_image = frame[y1:y2, x1:x2]
+                # 얼굴 이미지 추출
+                face_image = frame[y1:y2, x1:x2]
+                if face_image.size == 0:
+                    print(f"Warning: Empty face image at index {index}.")
+                else:
+                    print(f"Face image extracted for person {index+1}.")
 
-            # 감정 변화 감지
-            if previous_emotion is None:
-                print("First emotion detected!")
-                songs = youtube_search(f"{current_emotion} music")
-                change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
-                print("Recommended songs for the first emotion:")
-                for song in songs:
-                    print(f"Title: {song['title']}, URL: {song['url']}")
-            elif previous_emotion != current_emotion:
-                print("Emotion has changed!")
-                songs = youtube_search(f"{current_emotion} music")
-                change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
-                print(f"Recommended songs for {current_emotion}:")
-                for song in songs:
-                    print(f"Title: {song['title']}, URL: {song['url']}")
+                # 감정 분석
+                current_emotion = analyze_emotion_from_webcam(face_image)
+                print(f"Emotion detected: {current_emotion}")
+                
 
-            previous_emotion = current_emotion
+                # 감정 변화 감지
+                if previous_emotion is None:
+                    print("First emotion detected!")
+                    songs = youtube_search(f"{current_emotion} music")
+                    change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
+                    print("Recommended songs for the first emotion:")
+                    for song in songs:
+                        print(f"Title: {song['title']}, URL: {song['url']}")
+                elif previous_emotion != current_emotion:
+                    print("Emotion has changed!")
+                    songs = youtube_search(f"{current_emotion} music")
+                    change_detector.add(["person"], [1], "path_to_save_image", frame, current_emotion, previous_emotion, songs)
+                    print(f"Recommended songs for {current_emotion}:")
+                    for song in songs:
+                        print(f"Title: {song['title']}, URL: {song['url']}")
 
-        # 이미지를 클라이언트에게 반환
-        _, img_encoded = cv2.imencode('.jpg', frame)
-        return JsonResponse({'status': 'success', 'message': 'Image processed successfully', 'image': base64.b64encode(img_encoded).decode('utf-8')})
+                previous_emotion = current_emotion
 
+            # 이미지를 클라이언트에게 반환
+            _, img_encoded = cv2.imencode('.jpg', frame)
+            return JsonResponse({'status': 'success', 'message': 'Image processed successfully', 'image': base64.b64encode(img_encoded).decode('utf-8')
+            })
+        except Exception as e:
+            print(f"Error processing frame: {e}")
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
     else:
