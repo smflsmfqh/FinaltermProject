@@ -166,7 +166,7 @@
                     </div>
                 {% endfor %}
                 <!-- 댓글 작성 폼 -->
-                <form method="POST" action="{% url 'comment_list' post.id %}" class="comment-form">
+                <form id="comment-form" method="POST" action=# class="comment-form">
                     {% csrf_token %}
                     <textarea name="text" placeholder="댓글을 작성하세요"></textarea>
                     <button type="submit">댓글 작성</button>
@@ -227,7 +227,7 @@
         function startWebcamRecognition() {
             closeModal();
             console.log("버튼이 클릭되었습니다!"); // 클릭 확인용 로그
-            // 버튼 클릭 시 AJAX 요청을 대신하여 curl 요청을 보내는 서버로 이동하는 방식
+            
             fetch('/start-emotion-recognition/', {
                 method: 'POST',
                 headers: {
@@ -249,7 +249,8 @@
             });
         }
         document.addEventListener('DOMContentLoaded', function() {
-            const form = document.querySelector('.comment-form');
+            
+
             form.addEventListener('submit', function(event) {
                 event.preventDefault(); // 폼 제출을 막음
 
@@ -261,11 +262,12 @@
                     alert("댓글 내용이 비어있습니다.");
                     return;
                 }
-
+                
                 fetch(`/post/${postId}/comments/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}' 
                     },
                     body: JSON.stringify({
                         text: text,
@@ -312,13 +314,10 @@
                 .catch(error => {
                     console.error('Error:', error);
                     alert('오류가 발생했습니다.');
-                 });
+                });
             });
-
-
-
-
-    });
+        });
+    
 
     </script>
 </body>
