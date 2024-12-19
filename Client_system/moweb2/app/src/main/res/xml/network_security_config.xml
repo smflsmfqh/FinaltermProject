@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- 실제 IP나 로컬 네트워크 IP 사용 시 추가 가능 -->
+    </domain-config>
+</network-security-config>

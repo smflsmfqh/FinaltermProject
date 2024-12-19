@@ -1,0 +1,110 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+env/
+*.egg-info/
+
+# IDE files
+.idea/
+.vscode/
+
+# Log files
+*.log
+
+# Environment variables
+.env
+# Django files
+*.log
+db.sqlite3
+media/
+
+# Static files
+static/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+env/
+
+# IDE files
+.idea/
+.vscode/
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environment
+venv/
+env/
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# YOLOv5 specific files
+runs/
+weights/
+*.onnx
+*.engine
+*.pt
+*.ckpt
+*.npy
+
+# IDE configuration files
+.idea/
+.vscode/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+
+# Gradle files
+.gradle/
+build/
+*.apk
+*.ap_
+*.aab
+
+# Local configuration file
+local.properties
+
+# IntelliJ IDEA/Android Studio specific files
+.idea/
+*.iml
+*.hprof
+
+# Log and crash files
+*.log
+crashlytics-build.properties
+
+# Generated files
+/captures/
+.externalNativeBuild/
+
+# Keystore files
+*.keystore
+*.jks
+
+# NDK files
+/obj/
+
+# Dependency directories
+.DS_Store
+node_modules/
+
+# Test outputs
+test-results/
+outputs/
+
+# Firebase and Google Services configuration
+google-services.json
+
